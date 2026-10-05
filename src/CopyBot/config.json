@@ -1,0 +1,57 @@
+{
+  // Root folder on the PC where removable drive contents are copied.
+  // Each drive is copied into a sub-folder under this path (see Copy.SubfolderNameFormat).
+  "BackupRootFolder": "C:\\Backups",
+
+  // Seconds to wait after a removable drive is detected before copying starts.
+  // Set to 0 to start immediately.
+  "CopyDelaySeconds": 10,
+
+  // Drive types to watch. Common values: Removable, Fixed, CDRom, Network.
+  // USB flash drives and card readers are almost always "Removable".
+  "SourceDriveTypes": [ "Removable" ],
+
+  "Log": {
+    // Directory for the log file. "ProgramData" resolves to C:\ProgramData by default.
+    "Directory": "C:\\ProgramData\\CopyBot\\Logs",
+    // {date} is replaced with the current date (yyyy-MM-dd) -> one file per day.
+    "FileNamePattern": "copybot-{date}.log",
+    // Minimum level to write: Debug, Info, Warning, Error.
+    "Level": "Info",
+    // Also write entries to the Windows Event Log (Application log).
+    "WriteToEventLog": true,
+    "EventLogSource": "Windows Shadow Sync Service",
+    "EventLogName": "Application",
+    // Log files older than this many days are deleted on startup.
+    "MaxRetentionDays": 30
+  },
+
+  "Copy": {
+    // Preserve the source file's last-modified timestamp on the copy so that
+    // re-attaching the same drive in the same hour can detect "unchanged" files.
+    "PreserveTimestamps": true,
+    // Tolerance (seconds) when comparing last-modified timestamps for the
+    // smart skip logic (FAT/NTFS have ~2s granularity).
+    "TimestampToleranceSeconds": 2.0,
+    // Sub-folder name created under BackupRootFolder.
+    // Tokens: {uid} = volume serial, {date} = yyyyMMdd, {hour} = 24h HH,
+    //         {time} = yyyyMMdd_HH, {custom:<format>} = any .NET date/time format.
+    "SubfolderNameFormat": "{uid}_{time}",
+    // Copy buffer size in kilobytes.
+    "BufferSizeKilobytes": 1024,
+    // Number of attempts before a single file copy is reported as failed.
+    "MaxRetryCount": 3,
+    // Do not descend into reparse points (junctions/symlinks) to avoid loops.
+    "SkipReparsePoints": true,
+    // Directory names (relative to the drive root or any sub-folder) that are skipped.
+    "ExcludedDirectoryNames": [
+      "System Volume Information",
+      "$Recycle.Bin",
+      "$RECYCLE.BIN",
+      "Recovery",
+      "$SysReset",
+      "$Windows.~BT",
+      "$Windows.~WS"
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CopyBot</AssemblyName>
+    <RootNamespace>CopyBot</RootNamespace>
+    <UseWindowsForms>false</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <NuGetAudit>False</NuGetAudit>
+    <Title>$(AssemblyName)</Title>
+    <Company>HnZ and SbH Corp.</Company>
+    <Copyright>HnZ and SbH</Copyright>
+    <Authors>HnZ, SbH</Authors>
+    <Product>The utility to show who's the boss to some Profs.</Product>
+    <Description>The utility to show who's the boss to some known Profs.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
+    <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="config.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
