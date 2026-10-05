@@ -1,0 +1,38 @@
+name: Release
+
+# Builds and packages CopyBot on every version tag (e.g. v1.0.0) and attaches the
+# deployable ZIP to a GitHub Release as a downloadable artifact.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish (framework-dependent, win-x64)
+        shell: pwsh
+        run: dotnet publish src/CopyBot/CopyBot.csproj -c Release -r win-x64 -o release
+
+      - name: Package ZIP
+        shell: pwsh
+        run: ./scripts/package-zip.ps1 -Source release -OutputDir dist -ExcludePdb
+
+      - name: Create / attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

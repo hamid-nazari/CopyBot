@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -8,6 +8,9 @@
     <Nullable>enable</Nullable>
     <AssemblyName>CopyBot</AssemblyName>
     <RootNamespace>CopyBot</RootNamespace>
+    <!-- Single source of truth for the version. Bumped before each release tag. -->
+    <Version>1.0.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <UseWindowsForms>false</UseWindowsForms>
     <LangVersion>latest</LangVersion>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -15,7 +18,7 @@
     <NuGetAudit>False</NuGetAudit>
     <Title>$(AssemblyName)</Title>
     <Company>HnZ and SbH Corp.</Company>
-    <Copyright>HnZ and SbH</Copyright>
+    <Copyright>2026 - HnZ and SbH Corp.</Copyright>
     <Authors>HnZ, SbH</Authors>
     <Product>The utility to show who's the boss to some Profs.</Product>
     <Description>The utility to show who's the boss to some known Profs.</Description>
@@ -32,5 +35,17 @@
     <None Include="..\..\scripts\install-service.ps1" Link="install-service.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\uninstall-service.ps1" Link="uninstall-service.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!--
+    OPTIONAL packaging stage: produces a deployable ZIP of the build output named after
+    the version in CopyBot.exe. Never runs during a normal build; invoke explicitly with:
+      dotnet build -c Release /t:CreateReleaseZip -p:CreateReleaseZip=true
+    or run scripts/package-zip.ps1 directly.
+  -->
+  <Target Name="CreateReleaseZip"
+          Condition="'$(CreateReleaseZip)' == 'true'"
+          DependsOnTargets="Build">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\package-zip.ps1&quot; -Source &quot;$(TargetDir.TrimEnd('\'))&quot; -OutputDir &quot;$(MSBuildProjectDirectory)\..\..\dist&quot;" />
+  </Target>
 
 </Project>

@@ -17,3 +17,8 @@ TestResults/
 # Deployed service / config artifacts
 src/CopyBot/bin/
 src/CopyBot/obj/
+
+# Release archives / packaging output
+dist/
+release/
+*.zip

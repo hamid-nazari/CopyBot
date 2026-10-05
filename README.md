@@ -42,6 +42,59 @@ CopyBot.exe --sync C:\some\source D:\some\backup
 Run it twice: the first run copies everything, the second run **skips** files whose size
 and last-modified time are unchanged, and overwrites any that changed. This is the same
 routine the service uses for removable drives.
+## Release packaging (optional)
+
+Packaging a deployable ZIP is an **optional** step you run only when you are happy with
+a build. It is never produced by a normal build.
+
+The ZIP is named after the **version** set on the project, e.g. `CopyBot-1.2.0-win-x64.zip`.
+The version is a single source of truth in `src/CopyBot/CopyBot.csproj`:
+
+```xml
+<Version>1.2.0</Version>
+```
+
+Two equivalent ways to create the archive:
+
+```powershell
+# 1) As an MSBuild stage (builds first, then packages)
+dotnet build src\CopyBot\CopyBot.csproj -c Release /t:CreateReleaseZip -p:CreateReleaseZip=true
+
+# 2) Directly via the script (package an existing build/publish output)
+.\scripts\package-zip.ps1                # default: src\CopyBot\bin\Release\net8.0-windows
+.\scripts\package-zip.ps1 -Source .\release -ExcludePdb
+```
+
+The archive is written to `dist\` (git-ignored). Options for `package-zip.ps1`:
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `-Source` | Folder containing the built `CopyBot.exe` | `src\CopyBot\bin\Release\net8.0-windows` |
+| `-OutputDir` | Folder for the ZIP | `<repo>\dist` |
+| `-ZipFileName` | Archive name; supports `{version}` | `CopyBot-{version}-win-x64.zip` |
+| `-ExcludePdb` | Omit `*.pdb` symbol files | off |
+
+> The script logs and skips any nested folder (e.g. a stale `win-x64` publish output) that
+> duplicates the deployable files, so the release archive always contains a single
+> `CopyBot.exe` at the root.
+
+### Publish a clean build first (recommended)
+
+```powershell
+dotnet publish src\CopyBot\CopyBot.csproj -c Release -r win-x64 -o .\release
+.\scripts\package-zip.ps1 -Source .\release -ExcludePdb
+```
+
+### GitHub release
+
+1. Bump `<Version>` in `src/CopyBot/CopyBot.csproj`.
+
+3. The included `.github/workflows/release.yml` builds the project, packages the ZIP and
+   attaches it to a GitHub Release as a downloadable artifact (`dist/*.zip`,
+   `CopyBot-<version>-win-x64.zip`).
+
+If you prefer to attach the archive manually, run the packaging commands above and upload
+the generated `dist/*.zip` to the release you created for that tag.
 
 ---
 
