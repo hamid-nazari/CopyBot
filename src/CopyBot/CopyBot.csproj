@@ -29,6 +29,8 @@
 
   <ItemGroup>
     <None Update="config.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\install-service.ps1" Link="install-service.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\uninstall-service.ps1" Link="uninstall-service.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

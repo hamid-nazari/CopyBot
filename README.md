@@ -51,15 +51,39 @@ Run the scripts from an **elevated (Administrator)** PowerShell prompt.
 
 ### Install
 
+By default the installer uses an **already-built** `CopyBot.exe` found in `-BinaryRoot`
+(which defaults to the folder containing the script) and **does not compile anything**.
+In this mode the service is installed **in place**: `$InstallDir` becomes `-BinaryRoot`,
+and the `config.json` sitting next to `CopyBot.exe` is used directly — nothing is copied
+to a new location.
+
 ```powershell
-.\scripts\install-service.ps1
+# use the pre-built CopyBot.exe next to this script (e.g. from the build output folder)
+.\install-service.ps1
+
+# point at a specific pre-built CopyBot
+.\install-service.ps1 -BinaryRoot D:\CopyBot
 ```
 
-Optional switches: `-InstallDir <path>` (deploy folder), `-ConfigPath <path>`,
-`-SelfContained` (bundle the .NET runtime), `-DoNotStart`.
+To **build from source and then install** (publish the project first):
 
-The script publishes the app, creates the **Windows Shadow Sync Service**, sets it to
-**Delayed Automatic** start, configures restart-on-failure, then starts it.
+```powershell
+.\scripts\install-service.ps1 -FromSource
+```
+In `-FromSource` mode the project is published into `-InstallDir` (default
+`%ProgramFiles%\CopyBot`) and the config is deployed there.
+
+
+Other switches: `-InstallDir <path>` (deploy folder), `-ConfigPath <path>`,
+`-SelfContained` (bundle the .NET runtime; only meaningful with `-FromSource`),
+`-DoNotStart`.
+
+The script creates the **Windows Shadow Sync Service**, sets it to **Delayed Automatic**
+start, configures restart-on-failure, then starts it.
+
+> Both `install-service.ps1` and `uninstall-service.ps1` are copied into the CopyBot build
+> output (next to `CopyBot.exe`), so you can install a pre-built release directly from that
+> folder without rebuilding.
 
 ### Remove
 
@@ -68,7 +92,9 @@ The script publishes the app, creates the **Windows Shadow Sync Service**, sets 
 ```
 
 Add `-RemoveInstallDir` to delete the deployed binaries, and/or `-RemoveData` to also
-delete `%ProgramData%\CopyBot` (config + logs).
+delete `%ProgramData%\CopyBot` (config + logs). When `-InstallDir` is not given,
+`-RemoveInstallDir` defaults to the folder that actually holds the running service
+executable, which works for both in-place and deployed installs.
 
 ---
 

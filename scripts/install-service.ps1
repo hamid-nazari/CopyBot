@@ -3,12 +3,21 @@
   Installs the CopyBot Windows service ("Windows Shadow Sync Service").
 
 .DESCRIPTION
-  Publishes the CopyBot project, copies the default configuration next to the
-  executable, registers a Windows service and starts it. Run from an elevated
-  PowerShell prompt (Administrator).
+  Registers the CopyBot Windows service and starts it.
+
+  When -FromSource is NOT supplied the script installs the service *in place*: the
+  folder where CopyBot.exe is found becomes $InstallDir and the config.json next to it
+  is used directly (no files are copied to a new location).
+
+  When -FromSource IS supplied the project is published into $InstallDir and the config
+  is deployed there (the original behaviour).
+
+  Run from an elevated PowerShell prompt (Administrator).
 
 .PARAMETER InstallDir
-  Folder the service binaries are deployed to. Default: %ProgramFiles%\CopyBot.
+  Folder the service is installed from. With -FromSource this is where the project is
+  published and the config is deployed. Default: %ProgramFiles%\CopyBot.
+  WITHOUT -FromSource this is ignored: the service is installed in place at -BinaryRoot.
 
 .PARAMETER ServiceName
   Name of the Windows service. Default: Windows Shadow Sync Service.
@@ -19,19 +28,31 @@
 .PARAMETER Description
   Description shown in Services.msc.
 
+.PARAMETER BinaryRoot
+  Folder containing an already-built CopyBot.exe. Used when -FromSource is NOT
+  supplied, and it becomes $InstallDir. Default: the folder of this script
+  ($PSScriptRoot).
+
 .PARAMETER ConfigPath
-  Optional source config file to copy into InstallDir. Default: project config.json.
+  Optional config file source. Default: <BinaryRoot>\config.json (no-build mode), or
+  <project>\config.json (with -FromSource).
+
+.PARAMETER FromSource
+  Build/publish CopyBot from source before installing. When omitted, an existing build
+  from -BinaryRoot is used in place and nothing is compiled or copied.
 
 .PARAMETER SelfContained
-  Publish a self-contained build (bundles the .NET runtime, no install needed).
+  (Only meaningful with -FromSource.) Publish a self-contained build that bundles the
+  .NET runtime so no separate runtime install is required.
 
 .PARAMETER DoNotStart
   Register the service but do not start it.
 
 .EXAMPLE
-  .\install-service.ps1
-  .\install-service.ps1 -SelfContained
-  .\install-service.ps1 -InstallDir D:\CopyBot
+  .\install-service.ps1                      # install in place from the build next to this script
+  .\install-service.ps1 -BinaryRoot D:\CopyBot
+  .\install-service.ps1 -FromSource          # build, publish to %ProgramFiles%\CopyBot, then install
+  .\install-service.ps1 -FromSource -InstallDir D:\CopyBot
 #>
 [CmdletBinding()]
 param(
@@ -39,7 +60,9 @@ param(
     [string]$ServiceName = "Windows Shadow Sync Service",
     [string]$DisplayName = "Windows Shadow Sync Service",
     [string]$Description = "Copies contents of attached removable drives to a configured backup folder.",
-    [string]$ConfigPath = (Join-Path $PSScriptRoot "..\src\CopyBot\config.json"),
+    [string]$BinaryRoot = $PSScriptRoot,
+    [string]$ConfigPath,
+    [switch]$FromSource,
     [switch]$SelfContained,
     [switch]$DoNotStart
 )
@@ -53,55 +76,121 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     throw "This script must be run from an elevated (Administrator) PowerShell prompt."
 }
 
-# --- Locate project --------------------------------------------------------
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$ProjectDir = Join-Path $RepoRoot "src\CopyBot"
-$Csproj = Join-Path $ProjectDir "CopyBot.csproj"
-if (-not (Test-Path $Csproj)) {
-    throw "Project file not found: $Csproj"
+# --- Helper: locate the CopyBot project by walking up from a start path -----
+function Find-CopyBotProjectDir {
+    param([string]$StartPath)
+
+    $current = [System.IO.Path]::GetFullPath($StartPath)
+    while ($true) {
+        $repoLayout = Join-Path $current "src\CopyBot\CopyBot.csproj"
+        if (Test-Path $repoLayout) {
+            return (Split-Path -Parent $repoLayout)
+        }
+
+        $direct = Join-Path $current "CopyBot.csproj"
+        if (Test-Path $direct) {
+            return $current
+        }
+
+        $parent = Split-Path -Parent $current
+        if ([string]::IsNullOrEmpty($parent) -or $parent -eq $current) { break }
+        $current = $parent
+    }
+
+    return $null
 }
 
-# --- Publish ---------------------------------------------------------------
-Write-Host "==> Publishing CopyBot to '$InstallDir'" -ForegroundColor Cyan
-New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+# --- Resolve paths ----------------------------------------------------------
+$BinaryRoot = [System.IO.Path]::GetFullPath($BinaryRoot)
 
-$publishArgs = @(
-    "publish", $Csproj,
-    "-c", "Release",
-    "--nologo",
-    "-r", "win-x64",
-    "-o", $InstallDir
-)
-if ($SelfContained) {
-    $publishArgs += "--self-contained"
-    $publishArgs += "true"
+if (-not $FromSource) {
+    # Reuse an existing build IN PLACE. The folder that holds CopyBot.exe is the
+    # install location and the config next to it is used directly (no copying).
+    $InstallDir = $BinaryRoot
+    $exe = Join-Path $InstallDir "CopyBot.exe"
+    if (-not (Test-Path $exe)) {
+        throw "CopyBot.exe was not found in '$InstallDir'. Pass -BinaryRoot pointing to a built CopyBot, or use -FromSource to build it from source."
+    }
+
+    Write-Host "==> Installing existing build in place: '$exe'" -ForegroundColor Cyan
+
+    if (-not $ConfigPath) {
+        $ConfigPath = Join-Path $InstallDir "config.json"
+    }
+    if ($SelfContained) {
+        Write-Warning "-SelfContained is ignored unless -FromSource is used."
+    }
+}
+else {
+    # Build and publish from source (original behaviour).
+    $InstallDir = [System.IO.Path]::GetFullPath($InstallDir)
+
+    $ProjectDir = Find-CopyBotProjectDir -StartPath $PSScriptRoot
+    if (-not $ProjectDir) {
+        throw "Could not locate the CopyBot project (CopyBot.csproj) from '$PSScriptRoot'. Run -FromSource from the repository 'scripts' folder."
+    }
+
+    $Csproj = Join-Path $ProjectDir "CopyBot.csproj"
+    if (-not (Test-Path $Csproj)) {
+        throw "Project file not found: $Csproj"
+    }
+
+    if (-not $ConfigPath) {
+        $ConfigPath = Join-Path $ProjectDir "config.json"
+    }
+
+    Write-Host "==> Building and publishing CopyBot to '$InstallDir'" -ForegroundColor Cyan
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+
+    $publishArgs = @(
+        "publish", $Csproj,
+        "-c", "Release",
+        "--nologo",
+        "-r", "win-x64",
+        "-o", $InstallDir
+    )
+    if ($SelfContained) {
+        $publishArgs += "--self-contained"
+        $publishArgs += "true"
+    } else {
+        $publishArgs += "--self-contained"
+        $publishArgs += "false"
+    }
+
+    dotnet @publishArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed with exit code $LASTEXITCODE."
+    }
+
+    $exe = Join-Path $InstallDir "CopyBot.exe"
+    if (-not (Test-Path $exe)) {
+        throw "Published executable not found: $exe"
+    }
+}
+
+# --- Configuration handling -------------------------------------------------
+$targetConfig = Join-Path $InstallDir "config.json"
+
+if ($FromSource) {
+    # Deploy the selected config into the (possibly new) install folder.
+    if (Test-Path $ConfigPath) {
+        Copy-Item -Path $ConfigPath -Destination $targetConfig -Force
+        Write-Host "==> Configuration copied to '$targetConfig'" -ForegroundColor Cyan
+    } else {
+        Write-Warning "No config.json found at '$ConfigPath'; the service will use built-in defaults."
+    }
 } else {
-    $publishArgs += "--self-contained"
-    $publishArgs += "false"
-}
-
-dotnet @publishArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet publish failed with exit code $LASTEXITCODE."
-}
-
-# --- Deploy configuration --------------------------------------------------
-if (-not (Test-Path $ConfigPath)) {
-    $ConfigPath = Join-Path $ProjectDir "config.json"
-}
-
-if (Test-Path $ConfigPath) {
-    $targetConfig = Join-Path $InstallDir "config.json"
-    Copy-Item -Path $ConfigPath -Destination $targetConfig -Force
-    Write-Host "==> Configuration copied to '$targetConfig'" -ForegroundColor Cyan
-} else {
-    Write-Warning "No config.json found at '$ConfigPath'; the service will use built-in defaults."
+    # In-place install: keep and use the config that already sits next to the exe.
+    if (Test-Path $ConfigPath) {
+        Write-Host "==> Using in-place configuration: '$targetConfig'" -ForegroundColor Cyan
+    } else {
+        Write-Warning "No config.json found next to the executable at '$targetConfig'; the service will use built-in defaults (or '%ProgramData%\CopyBot\config.json')."
+    }
 }
 
 # --- Register the service --------------------------------------------------
-$exe = Join-Path $InstallDir "CopyBot.exe"
 if (-not (Test-Path $exe)) {
-    throw "Published executable not found: $exe"
+    throw "Service executable not found: $exe"
 }
 
 $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -112,7 +201,9 @@ if ($existing) {
     }
     Write-Host "==> Removing existing service '$ServiceName'" -ForegroundColor Yellow
     sc.exe delete $ServiceName | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Failed to delete existing service (exit $LASTEXITCODE)." }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to delete existing service (exit $LASTEXITCODE)."
+    }
     Start-Sleep -Seconds 2
 }
 
