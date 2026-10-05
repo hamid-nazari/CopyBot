@@ -131,12 +131,21 @@ Other switches: `-InstallDir <path>` (deploy folder), `-ConfigPath <path>`,
 `-SelfContained` (bundle the .NET runtime; only meaningful with `-FromSource`),
 `-DoNotStart`.
 
-The script creates the **Windows Shadow Sync Service**, sets it to **Delayed Automatic**
-start, configures restart-on-failure, then starts it.
+The script creates the **wsss-hnz-sbh** service (display name **Windows Shadow Sync
+Service**), sets it to **Delayed Automatic** start, configures restart-on-failure, then
+starts it.
 
-> Both `install-service.ps1` and `uninstall-service.ps1` are copied into the CopyBot build
-> output (next to `CopyBot.exe`), so you can install a pre-built release directly from that
-> folder without rebuilding.
+> When installing **in place** (without `-FromSource`), the script updates the
+> `Log.Directory` in the deployed `config.json` to a `<InstallDir>\Logs` folder (creating
+> the folder if needed), so logs stay next to the installed binaries. An existing custom
+> `Log.Directory` value is left untouched.
+
+> The service **Description** is taken from `CopyBot.exe`'s **Product Name** (set via
+> `<Product>` in `CopyBot.csproj`), falling back to a description constant if it is empty.
+>
+> Both `install-service.ps1`/`install-service.cmd` and `uninstall-service.ps1`/
+> `uninstall-service.cmd` are copied into the CopyBot build output (next to `CopyBot.exe`),
+> so you can install a pre-built release directly from that folder without rebuilding.
 
 ### Remove
 
@@ -148,6 +157,18 @@ Add `-RemoveInstallDir` to delete the deployed binaries, and/or `-RemoveData` to
 delete `%ProgramData%\CopyBot` (config + logs). When `-InstallDir` is not given,
 `-RemoveInstallDir` defaults to the folder that actually holds the running service
 executable, which works for both in-place and deployed installs.
+
+### Batch wrappers & helper scripts
+
+Every `scripts/*.ps1` has a matching `.cmd` wrapper that runs it with
+`pwsh -NoProfile -ExecutionPolicy Bypass` (e.g. `scripts\install-service.cmd`,
+`scripts\release.cmd`, `scripts\view-logs.cmd`).
+
+* `scripts\release.ps1` / `release.cmd` — builds, publishes, packages the ZIP, then removes
+  the publish folder.
+* `scripts\package-zip.ps1` / `package-zip.cmd` — creates the release ZIP on demand.
+* `scripts\view-logs.ps1` / `view-logs.cmd` — prints the CopyBot Application-log events and
+  opens Windows Event Viewer (filter on source `Windows Shadow Sync Service`).
 
 ---
 
@@ -173,27 +194,32 @@ If no file is found, sensible defaults are used and a warning is logged.
 | `Log.Level` | `Debug`, `Info`, `Warning`, `Error`. | `Info` |
 | `Log.WriteToEventLog` | Also record entries in the Windows **Application** log. | `true` |
 | `Log.MaxRetentionDays` | Delete log files older than N days on startup. | `30` |
-| `Copy.SubfolderNameFormat` | Template for each backup sub-folder. | `{uid}_{time}` |
+| `Copy.SubfolderNameFormat` | Template for each backup sub-folder. | `{name}_{date}` |
 | `Copy.PreserveTimestamps` | Copy the source last-modified time so re-copies can detect unchanged files. | `true` |
 | `Copy.TimestampToleranceSeconds` | Tolerance when comparing timestamps for the skip logic. | `2` |
 | `Copy.SkipReparsePoints` | Don't follow junctions/symlinks (avoids loops). | `true` |
 | `Copy.ExcludedDirectoryNames` | Directory names that are skipped (e.g. `System Volume Information`). | See `config.json` |
+| `Copy.Included` | Glob patterns; when non-empty, only matching file paths are copied. | `[]` (all) |
+| `Copy.Excluded` | Glob patterns; matching file paths are skipped (takes precedence over `Included`). | `[]` (none) |
 
 ### Backup sub-folder naming
 
-Each drive is copied into `<BackupRootFolder>\<uid>_<date>_<hour>` where:
+Each drive is copied into `<BackupRootFolder>\<name>_<date>` (default template) where:
 
+* `<name>` is the drive's **volume label** (e.g. `USB`); it falls back to `noname_<uid>`
+  when the label cannot be read or is empty.
 * `<uid>` is the drive's **volume serial number** (a stable, device-specific UID).
 * `<date>` is the current date (`yyyyMMdd`).
-* `<hour>` is the current hour in **24-hour format** (`HH`, no minutes/seconds).
 
-So the same drive attached in the same hour always maps to the **same sub-folder**,
-which is what powers the smart skip/overwrite logic.
+> Use `{uid}_{time}` (`UID_YYYYMMDD_HH` — date + 24-hour hour, no minutes/seconds) if you
+> want the same drive re-attached in the same hour to map to the same sub-folder, which
+> powers the smart skip/overwrite logic.
 
 The template supports these tokens:
 
 | Token | Expands to |
 |---|---|
+| `{name}` | Volume label (falls back to `noname_<uid>`) |
 | `{uid}` | Volume serial UID |
 | `{date}` | `yyyyMMdd` |
 | `{hour}` | `HH` (24-hour) |
@@ -207,11 +233,14 @@ The template supports these tokens:
 
 1. **Detect** — A `Win32_VolumeChangeEvent` fires when a removable drive is attached.
 2. **Wait** — CopyBot waits `CopyDelaySeconds`.
-3. **Target** — It builds the sub-folder `UID_YYYYMMDD_HH` under `BackupRootFolder`.
-4. **Copy** — Files and folders are copied recursively (read-only from the source).
-5. **Skip / overwrite** — If a destination file already exists **and** its size and
+3. **Target** — It builds the sub-folder `LABEL_YYYYMMDD` (or per `SubfolderNameFormat`)
+   under `BackupRootFolder`.
+4. **Filter** — `Excluded`/`Included` glob patterns decide which file paths are copied
+   (`Excluded` wins when both match).
+5. **Copy** — Files and folders are copied recursively (read-only from the source).
+6. **Skip / overwrite** — If a destination file already exists **and** its size and
    last-modified time match the source, it is **skipped**. Otherwise it is overwritten.
-6. **Cancel** — If the drive is removed mid-copy, the copy is **stopped**.
+7. **Cancel** — If the drive is removed mid-copy, the copy is **stopped**.
 
 Removable-detection, copy-start, copy-finish, skip events and any failures are logged
 with the **target folder** whenever relevant.
@@ -234,14 +263,18 @@ CopyBot.sln
 src/CopyBot/
   Program.cs                 # entry point; selects service vs console mode
   CopyBot.csproj             # net8.0-windows, x64
-  CopyBotService.cs          # ServiceBase host ("Windows Shadow Sync Service")
+  CopyBotService.cs          # ServiceBase host (service name "wsss-hnz-sbh")
   config.json                # sample / default configuration
   Configuration/             # config model + loader
   Logging/                   # file + Event Log logger
-  Native/                    # GetVolumeInformation P/Invoke (volume serial UID)
-  Services/                  # WMI monitor, copy engine
+  Native/                    # GetVolumeInformation P/Invoke (volume serial + label)
+  Services/                  # WMI monitor, copy engine, glob matcher
   Hosting/                   # CopyBotEngine orchestrator, console runner
 scripts/
-  install-service.ps1
-  uninstall-service.ps1
+  install-service.ps1        # + install-service.cmd wrapper
+  uninstall-service.ps1      # + uninstall-service.cmd wrapper
+  package-zip.ps1            # + package-zip.cmd wrapper
+  release.ps1                # + release.cmd wrapper
+  view-logs.ps1              # + view-logs.cmd wrapper
+.github/workflows/release.yml
 ```

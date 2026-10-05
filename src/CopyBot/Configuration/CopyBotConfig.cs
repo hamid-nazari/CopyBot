@@ -56,7 +56,7 @@ public sealed class CopyBotConfig
         public double TimestampToleranceSeconds { get; set; } = 2.0;
 
         /// <summary>Template used to build each backup sub-folder name.</summary>
-        public string SubfolderNameFormat { get; set; } = "{uid}_{time}";
+        public string SubfolderNameFormat { get; set; } = "{name}_{date}";
 
         /// <summary>Copy buffer size in kilobytes.</summary>
         public int BufferSizeKilobytes { get; set; } = 1024;
@@ -78,6 +78,20 @@ public sealed class CopyBotConfig
             "$Windows.~BT",
             "$Windows.~WS"
         };
+
+        /// <summary>
+        /// Glob patterns for file paths to include. When non-empty, only files whose
+        /// path matches one of these patterns are copied; all others are skipped.
+        /// Default: empty (include everything).
+        /// </summary>
+        public List<string> Included { get; set; } = new();
+
+        /// <summary>
+        /// Glob patterns for file paths to exclude. When a path matches any pattern it
+        /// is skipped, and this takes precedence over <see cref="Included"/>.
+        /// Default: empty (exclude nothing).
+        /// </summary>
+        public List<string> Excluded { get; set; } = new();
 
         [JsonIgnore]
         public int BufferSizeBytes => Math.Max(4096, Math.Max(1, BufferSizeKilobytes) * 1024);

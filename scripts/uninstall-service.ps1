@@ -1,9 +1,10 @@
 <#
 .SYNOPSIS
-  Stops and removes the CopyBot Windows service ("Windows Shadow Sync Service").
+  Stops and removes the CopyBot Windows service (service name "wsss-hnz-sbh",
+  display name "Windows Shadow Sync Service").
 
 .PARAMETER ServiceName
-  Name of the Windows service. Default: Windows Shadow Sync Service.
+  Name of the Windows service. Default: wsss-hnz-sbh.
 
 .PARAMETER RemoveInstallDir
   Also delete the folder that holds the running service binary. If -InstallDir is not
@@ -23,7 +24,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$ServiceName = "Windows Shadow Sync Service",
+    [string]$ServiceName = "wsss-hnz-sbh",
     [switch]$RemoveInstallDir,
     [switch]$RemoveData,
     [string]$InstallDir

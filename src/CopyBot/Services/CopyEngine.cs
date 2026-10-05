@@ -64,7 +64,8 @@ public sealed class CopyEngine
             }
 
             string uid = NativeVolume.GetVolumeUid(drive.RootDirectory.FullName);
-            backupFolder = BuildBackupFolder(uid);
+            string label = NativeVolume.GetVolumeLabel(drive.RootDirectory.FullName);
+            backupFolder = BuildBackupFolder(uid, label);
 
             if (string.IsNullOrWhiteSpace(uid) || uid == "UNKNOWN")
             {
@@ -184,23 +185,27 @@ public sealed class CopyEngine
         return wanted.Contains(drive.DriveType.ToString());
     }
 
-    private string BuildBackupFolder(string uid)
+    private string BuildBackupFolder(string uid, string label)
     {
         var template = _config.Copy.SubfolderNameFormat;
         var now = DateTime.Now;
 
-        var name = ResolveTemplate(template, uid, now);
+        var name = ResolveTemplate(template, uid, label, now);
         var root = Path.GetFullPath(_config.BackupRootFolder);
         return Path.Combine(root, name);
     }
 
-    private static string ResolveTemplate(string template, string uid, DateTime now)
+    private static string ResolveTemplate(string template, string uid, string label, DateTime now)
     {
         if (string.IsNullOrWhiteSpace(template))
-            template = "{uid}_{time}";
+            template = "{name}_{date}";
+
+        // {name} maps to the volume label; fall back to "noname_<uid>" when missing.
+        var name = string.IsNullOrWhiteSpace(label) ? $"noname_{uid}" : label;
 
         var result = template
             .Replace("{uid}", uid)
+            .Replace("{name}", name)
             .Replace("{date}", now.ToString("yyyyMMdd"))
             .Replace("{hour}", now.ToString("HH"))
             .Replace("{time}", now.ToString("yyyyMMdd_HH"))
@@ -232,7 +237,7 @@ public sealed class CopyEngine
         _logger.Info($"Copy started for {sourceLabel} → target folder '{backupFolder}'.");
         Directory.CreateDirectory(backupFolder);
 
-        int copied = 0, skipped = 0, failed = 0;
+        int copied = 0, skipped = 0, failed = 0, excluded = 0, notIncluded = 0;
         long totalBytes = 0;
         var watch = Stopwatch.StartNew();
 
@@ -242,6 +247,25 @@ public sealed class CopyEngine
 
             string relative = Path.GetRelativePath(sourceRoot, source);
             string destination = Path.Combine(backupFolder, relative);
+
+            // Apply file-path include/exclude glob rules before anything else.
+            string relPath = relative.Replace('\\', '/');
+            if (GlobMatcher.IsMatchAny(_config.Copy.Excluded, relPath))
+            {
+                excluded++;
+                bool alsoIncluded = _config.Copy.Included.Count > 0
+                                    && GlobMatcher.IsMatchAny(_config.Copy.Included, relPath);
+                var note = alsoIncluded ? " (Excluded takes precedence over Included.)" : "";
+                _logger.Info($"Excluded by pattern: '{relative}'{note}");
+                continue;
+            }
+
+            if (_config.Copy.Included.Count > 0 && !GlobMatcher.IsMatchAny(_config.Copy.Included, relPath))
+            {
+                notIncluded++;
+                _logger.Info($"Not matched by Included patterns: '{relative}'");
+                continue;
+            }
 
             if (ShouldSkip(source, destination))
             {
@@ -270,9 +294,10 @@ public sealed class CopyEngine
         _logger.Info(
             $"Copy completed for {sourceLabel} → target folder '{backupFolder}' in " +
             $"{watch.Elapsed.TotalSeconds:F1}s. Files copied: {copied}, unchanged skipped: {skipped}, " +
+            $"excluded by pattern: {excluded}, not matched by Included: {notIncluded}, " +
             $"failed: {failed}, bytes copied: {totalBytes}.");
 
-        return new CopySyncSummary(copied, skipped, failed, totalBytes, watch.Elapsed);
+        return new CopySyncSummary(copied, skipped, failed, excluded, notIncluded, totalBytes, watch.Elapsed);
     }
 
     private IEnumerable<(string Path, long Length)> EnumerateFiles(string root, CancellationToken ct)
@@ -442,5 +467,7 @@ public sealed record CopySyncSummary(
     int Copied,
     int Skipped,
     int Failed,
+    int Excluded,
+    int NotIncluded,
     long BytesCopied,
     TimeSpan Elapsed);

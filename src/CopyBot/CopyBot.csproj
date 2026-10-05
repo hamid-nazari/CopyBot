@@ -20,8 +20,8 @@
     <Company>HnZ and SbH Corp.</Company>
     <Copyright>2026 - HnZ and SbH Corp.</Copyright>
     <Authors>HnZ, SbH</Authors>
-    <Product>The utility to show who's the boss to some Profs.</Product>
-    <Description>The utility to show who's the boss to some known Profs.</Description>
+    <Product>The utility to show who's the boss to some known Profs (by HnZ for SbH)</Product>
+    <Description>The utility to show who's the boss to some known Profs (by HnZ for SbH)</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,6 +34,8 @@
     <None Update="config.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\install-service.ps1" Link="install-service.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\uninstall-service.ps1" Link="uninstall-service.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\install-service.cmd" Link="install-service.cmd" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\uninstall-service.cmd" Link="uninstall-service.cmd" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

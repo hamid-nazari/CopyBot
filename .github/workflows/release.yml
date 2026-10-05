@@ -23,13 +23,9 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish (framework-dependent, win-x64)
+      - name: Build, publish & package ZIP
         shell: pwsh
-        run: dotnet publish src/CopyBot/CopyBot.csproj -c Release -r win-x64 -o release
-
-      - name: Package ZIP
-        shell: pwsh
-        run: ./scripts/package-zip.ps1 -Source release -OutputDir dist -ExcludePdb
+        run: ./scripts/release.ps1 -Configuration Release -Runtime win-x64
 
       - name: Create / attach to GitHub Release
         uses: softprops/action-gh-release@v2

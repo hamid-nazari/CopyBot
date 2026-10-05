@@ -82,6 +82,9 @@ public static class ConfigLoader
             config.Log.EventLogName = "Application";
 
         if (string.IsNullOrWhiteSpace(config.Copy.SubfolderNameFormat))
-            config.Copy.SubfolderNameFormat = "{uid}_{time}";
+            config.Copy.SubfolderNameFormat = "{name}_{date}";
+
+        config.Copy.Included ??= new List<string>();
+        config.Copy.Excluded ??= new List<string>();
     }
 }

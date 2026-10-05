@@ -34,9 +34,10 @@
     // smart skip logic (FAT/NTFS have ~2s granularity).
     "TimestampToleranceSeconds": 2.0,
     // Sub-folder name created under BackupRootFolder.
-    // Tokens: {uid} = volume serial, {date} = yyyyMMdd, {hour} = 24h HH,
-    //         {time} = yyyyMMdd_HH, {custom:<format>} = any .NET date/time format.
-    "SubfolderNameFormat": "{uid}_{time}",
+    // Tokens: {name} = volume label (falls back to "noname_<uid>"), {uid} = volume serial,
+    //         {date} = yyyyMMdd, {hour} = 24h HH, {time} = yyyyMMdd_HH,
+    //         {custom:<format>} = any .NET date/time format.
+    "SubfolderNameFormat": "{name}_{date}",
     // Copy buffer size in kilobytes.
     "BufferSizeKilobytes": 1024,
     // Number of attempts before a single file copy is reported as failed.
@@ -52,6 +53,13 @@
       "$SysReset",
       "$Windows.~BT",
       "$Windows.~WS"
-    ]
+    ],
+    // Glob patterns matched against each file's path (relative to the drive root,
+    // e.g. "docs/readme.txt"). When non-empty, ONLY files whose path matches one of
+    // these patterns are copied; all others are skipped.
+    "Included": [],
+    // Glob patterns for paths to skip. When a path matches any pattern here it is
+    // skipped, and Excluded always takes precedence over Included.
+    "Excluded": []
   }
 }

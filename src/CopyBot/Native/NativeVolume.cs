@@ -58,4 +58,30 @@ internal static class NativeVolume
 
         return "UNKNOWN";
     }
+
+    /// <summary>
+    /// Returns the volume label for a drive (e.g. "USB"), or an empty string when the
+    /// volume has no label or the label cannot be read.
+    /// </summary>
+    public static string GetVolumeLabel(string rootPath)
+    {
+        var volumeName = new StringBuilder((int)MaxPath);
+        var fileSystem = new StringBuilder((int)MaxPath);
+
+        if (GetVolumeInformation(
+                rootPath,
+                volumeName,
+                MaxPath,
+                out _,
+                out _,
+                out _,
+                fileSystem,
+                MaxPath)
+            && volumeName.Length > 0)
+        {
+            return volumeName.ToString();
+        }
+
+        return string.Empty;
+    }
 }

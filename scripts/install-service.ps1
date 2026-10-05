@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-  Installs the CopyBot Windows service ("Windows Shadow Sync Service").
+  Installs the CopyBot Windows service (service name "wsss-hnz-sbh", display name
+  "Windows Shadow Sync Service").
 
 .DESCRIPTION
   Registers the CopyBot Windows service and starts it.
@@ -20,7 +21,7 @@
   WITHOUT -FromSource this is ignored: the service is installed in place at -BinaryRoot.
 
 .PARAMETER ServiceName
-  Name of the Windows service. Default: Windows Shadow Sync Service.
+  Name of the Windows service. Default: wsss-hnz-sbh.
 
 .PARAMETER DisplayName
   Human-friendly service display name.
@@ -57,9 +58,9 @@
 [CmdletBinding()]
 param(
     [string]$InstallDir = (Join-Path $env:ProgramFiles "CopyBot"),
-    [string]$ServiceName = "Windows Shadow Sync Service",
+    [string]$ServiceName = "wsss-hnz-sbh",
     [string]$DisplayName = "Windows Shadow Sync Service",
-    [string]$Description = "Copies contents of attached removable drives to a configured backup folder.",
+    [string]$Description,
     [string]$BinaryRoot = $PSScriptRoot,
     [string]$ConfigPath,
     [switch]$FromSource,
@@ -98,6 +99,48 @@ function Find-CopyBotProjectDir {
     }
 
     return $null
+}
+
+# --- Helper: point the config.json log folder at a given directory ----------
+function Set-CopyBotLogDirectory {
+    param(
+        [string]$ConfigPath,
+        [string]$LogDir
+    )
+
+    $defaultLogDir = 'C:\ProgramData\CopyBot\Logs'
+
+    # No config present: create a minimal one that only sets the log directory.
+    if (-not (Test-Path $ConfigPath)) {
+        $minimal = @{ Log = @{ Directory = $LogDir } }
+        $json = $minimal | ConvertTo-Json -Depth 5
+        [System.IO.File]::WriteAllText($ConfigPath, $json, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "==> Created config '$ConfigPath' with Log.Directory = '$LogDir'" -ForegroundColor Cyan
+        return
+    }
+
+    # The shipped config.json contains // comments, which ConvertFrom-Json cannot
+    # parse, so strip whole-line comments before parsing.
+    $text = Get-Content -Path $ConfigPath -Raw
+    $clean = ($text -split "\r?\n" | Where-Object { $_.Trim() -notlike '//*' }) -join "`r`n"
+    $config = $clean | ConvertFrom-Json
+
+    if ($null -eq $config.Log) {
+        $config | Add-Member -NotePropertyName 'Log' -NotePropertyValue ([pscustomobject]@{ Directory = $LogDir })
+    } else {
+        $current = [string]$config.Log.Directory
+        $isDefault = [string]::IsNullOrWhiteSpace($current) -or
+                     [string]::Equals($current.Trim(), $defaultLogDir, [System.StringComparison]::OrdinalIgnoreCase)
+        if ($isDefault) {
+            $config.Log.Directory = $LogDir
+        } else {
+            Write-Host "  Keeping custom Log.Directory: '$current'" -ForegroundColor DarkGray
+        }
+    }
+
+    $json = $config | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($ConfigPath, $json, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "==> Set Log.Directory = '$LogDir' in '$ConfigPath'" -ForegroundColor Cyan
 }
 
 # --- Resolve paths ----------------------------------------------------------
@@ -180,11 +223,28 @@ if ($FromSource) {
         Write-Warning "No config.json found at '$ConfigPath'; the service will use built-in defaults."
     }
 } else {
-    # In-place install: keep and use the config that already sits next to the exe.
-    if (Test-Path $ConfigPath) {
-        Write-Host "==> Using in-place configuration: '$targetConfig'" -ForegroundColor Cyan
+    # In-place install: use the config next to the exe, and make the default log
+    # folder local to the install directory (<InstallDir>\Logs).
+    $logDir = Join-Path $InstallDir "Logs"
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    Set-CopyBotLogDirectory -ConfigPath $targetConfig -LogDir $logDir
+    Write-Host "==> Using in-place configuration: '$targetConfig'" -ForegroundColor Cyan
+}
+
+# --- Resolve the service description ----------------------------------------
+# Use the "Product Name" of CopyBot.exe, falling back to the previous default text.
+if ([string]::IsNullOrWhiteSpace($Description)) {
+    $productName = $null
+    try {
+        $productName = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductName
+    } catch {
+        $productName = $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($productName)) {
+        $Description = "Copies contents of attached removable drives to a configured backup folder."
     } else {
-        Write-Warning "No config.json found next to the executable at '$targetConfig'; the service will use built-in defaults (or '%ProgramData%\CopyBot\config.json')."
+        $Description = $productName
     }
 }
 

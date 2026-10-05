@@ -5,7 +5,8 @@ using CopyBot.Hosting;
 namespace CopyBot;
 
 /// <summary>
-/// The Windows service host named "Windows Shadow Sync Service".
+/// The Windows service host. The SCM service name is "wsss-hnz-sbh"; its display name
+/// is "Windows Shadow Sync Service".
 /// </summary>
 public class CopyBotService : ServiceBase
 {
@@ -15,7 +16,7 @@ public class CopyBotService : ServiceBase
     public CopyBotService(CopyBotConfig config)
     {
         _config = config;
-        ServiceName = "Windows Shadow Sync Service";
+        ServiceName = "wsss-hnz-sbh";
         CanStop = true;
         CanShutdown = true;
         CanPauseAndContinue = false;

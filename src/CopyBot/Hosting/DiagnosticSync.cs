@@ -25,7 +25,8 @@ public static class DiagnosticSync
             CancellationToken.None);
 
         Console.WriteLine(
-            $"Done. Copied={summary.Copied}, Skipped={summary.Skipped}, Failed={summary.Failed}, " +
+            $"Done. Copied={summary.Copied}, Skipped={summary.Skipped}, " +
+            $"Excluded={summary.Excluded}, NotIncluded={summary.NotIncluded}, Failed={summary.Failed}, " +
             $"Bytes={summary.BytesCopied}, Elapsed={summary.Elapsed.TotalSeconds:F1}s");
 
         return summary.Failed == 0 ? 0 : 1;
