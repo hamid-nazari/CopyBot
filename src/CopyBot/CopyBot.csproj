@@ -9,7 +9,7 @@
     <AssemblyName>CopyBot</AssemblyName>
     <RootNamespace>CopyBot</RootNamespace>
     <!-- Single source of truth for the version. Bumped before each release tag. -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <UseWindowsForms>false</UseWindowsForms>
     <LangVersion>latest</LangVersion>
@@ -36,6 +36,8 @@
     <None Include="..\..\scripts\uninstall-service.ps1" Link="uninstall-service.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\install-service.cmd" Link="install-service.cmd" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\uninstall-service.cmd" Link="uninstall-service.cmd" CopyToOutputDirectory="PreserveNewest" />
+	<None Include="..\..\scripts\view-logs.cmd" Link="view-logs.cmd" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\view-logs.ps1" Link="view-logs.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

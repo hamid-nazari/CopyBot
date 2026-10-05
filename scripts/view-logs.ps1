@@ -35,12 +35,13 @@ param(
     [switch]$NoViewer
 )
 
-$ErrorActionPreference = "Stop"
-
-$xpath = "*[System[Provider[@Name='$Source']]]"
-$events = @(Get-WinEvent -LogName $LogName -FilterXPath $xpath -MaxEvents $Count -ErrorAction SilentlyContinue)
-
 if (-not $NoConsole) {
+	
+	$ErrorActionPreference = "Stop"
+
+	$xpath = "*[System[Provider[@Name='$Source']]]"
+	$events = @(Get-WinEvent -LogName $LogName -FilterXPath $xpath -MaxEvents $Count -ErrorAction SilentlyContinue)
+
     if ($events.Count -eq 0) {
         Write-Host "No events found from source '$Source' in the '$LogName' log." -ForegroundColor Yellow
     } else {
@@ -60,7 +61,4 @@ if (-not $NoConsole) {
 
 if (-not $NoViewer) {
     Start-Process -FilePath "eventvwr.msc"
-    Write-Host ""
-    Write-Host "Opened Windows Event Viewer. To filter on this service:" -ForegroundColor Green
-    Write-Host "  Windows Logs -> Application -> Filter Current Log... -> 'Event sources: $Source'" -ForegroundColor Green
 }
